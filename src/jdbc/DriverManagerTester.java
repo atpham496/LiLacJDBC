@@ -23,7 +23,7 @@ public class DriverManagerTester
         Connection connection = null;
 
         try {
-               connection = DriverManager.getConnection("jdbc:mysql://localhost/lilac?serverTimezone=UTC","root", "Fa415mh690@Y");
+               connection = DriverManager.getConnection("jdbc:mysql://localhost/lilac?serverTimezone=UTC","root", "[REDACTED]");
         	
 
         } catch (SQLException e) {
