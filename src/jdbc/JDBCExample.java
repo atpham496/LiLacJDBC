@@ -674,4 +674,34 @@ public class JDBCExample {
 			}
 		}// nothing we can do
 	}
+	
+	// using group by and having to find customers who spent a cumulative total over $25
+	private static void viewCustomersSpentOver25(Connection conn) {
+		Statement stmt = null;
+		try {
+			String SQL ="select Customer.cName, sum(Sale.pricePaid) as cumulative_pricePaid from Sale, Customer, Bouquet where Sale.cID = Customer.cID AND Sale.bID = Bouquet.bID group by cName having sum(Sale.pricePaid) >= 25";
+			stmt = conn.createStatement();
+			ResultSet rs = stmt.executeQuery(SQL);  
+
+			//Display result
+			System.out.println("Here are all the customers who spent a cumulative total of $25 and over.");
+			while(rs.next()){
+				System.out.println("Customer name = "+rs.getString("cName")+", cumulative price paid = "+ "$" +rs.getInt("cumulative_pricePaid"));
+			}
+
+		} catch(SQLException se){
+			//Handle errors for JDBC
+			se.printStackTrace();
+		}catch(Exception e){
+			//Handle errors for Class.forName
+			e.printStackTrace();
+		}finally{
+			//finally block used to close resources
+			try{
+				if(stmt!=null)
+					stmt.close();
+			}catch(SQLException se2){
+			}
+		}// nothing we can do
+	}
 }//end JDBCExample
