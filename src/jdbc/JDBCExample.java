@@ -3,6 +3,9 @@ package jdbc; //this .java file is under a package named "jdbc"
 
 //STEP 1. Import required packages
 import java.sql.*;
+import java.sql.Date;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.*;
 
 public class JDBCExample {
@@ -14,9 +17,6 @@ public class JDBCExample {
 	static final String USER = "root";
 	static final String PASS = "[REDACTED]"; //your computer's password
 
-	//static variables for customer information
-	static String cNameGlobal = "Erin Mac";
-	static int cIDGlobal = 0;	
 
 	public static void main(String[] args) {
 		Connection conn = null;
@@ -30,27 +30,45 @@ public class JDBCExample {
 			Scanner scanner = new Scanner(System.in); 
 
 			while(scanner.hasNextLine()) {
-				
-				String userInput = scanner.nextLine();
-				if(userInput.equals("V")) {
+
+				String userInput = scanner.nextLine().toUpperCase();
+				if(userInput.equals("A")) {
 					viewBouquetInformation(conn);
-				} else if (userInput.equals("D")) {
+				} else if (userInput.equals("B")) {
 					viewDiscountEligibility(conn);
-				} else if(userInput.equals("H")) {
+				} else if(userInput.equals("C")) {
 					viewOrderHistory(conn);
-				}else if (userInput.equals("O")) {
-					orderBouquet(conn);
-					
-				} else if (userInput.equals("TEST")) {
-					insertIntoSale(conn, 204, 3, 10, "vase"); //DUMMY VALUE cath testing
-				} else { // invalid input. 
+				}else if (userInput.equals("D")) {
+					orderBouquet(conn);	
+				} else if (userInput.equals("E")) {
+					leftJoinCommand(conn);	
+				} else if (userInput.equals("F")) {
+					viewCustomersSpentOver25(conn);	
+				} else if (userInput.equals("G")) {
+					viewAllItems(conn);
+				} else if (userInput.equals("1")) {
+					testFlowerSchema(conn);
+				} else if (userInput.equals("2")) {
+					testBouquetSchema(conn);
+				} else if (userInput.equals("3")) {
+					testFloristSchema(conn);
+				} else if (userInput.equals("4")) {
+					testCustomerSchema(conn);
+				}else if (userInput.equals("5")) {
+					testSaleSchema(conn);
+				} else if (userInput.equals("Z")) {
+					customerArchive(conn);
+				} 
+				else { // invalid input. 
 					System.out.println("Invalid input.");
 				}
 
 				// Re-prompting to repeat procedure
+				System.out.println();
 				System.out.println("We could help you with these following activities: ");
 				mainPromptHelper();
 			}
+			System.out.println("Goodbye!");
 			scanner.close();
 		}catch(SQLException se){
 			//Handle errors for JDBC
@@ -72,25 +90,75 @@ public class JDBCExample {
 	}//end main
 
 	private static void mainPromptHelper() {
-		System.out.println("Enter \"V\" to view bouquet information");
-		System.out.println("Enter \"D\" to view your discount eligibility");
-		System.out.println("Enter \"H\" to view your order history");
-		System.out.println("Enter \"O\" to order a bouquet");
+		System.out.println("Enter \"A\" to view bouquet information");
+		System.out.println("Enter \"B\" to view your discount eligibility");
+		System.out.println("Enter \"C\" to view your order history");
+		System.out.println("Enter \"D\" to order a bouquet");
+		System.out.println("Enter \"E\" to view users who hasn't bought any bouquets");
+		System.out.println("Enter \"F\" to view customers who spent $25 and over");
+		System.out.println("Enter \"G\" to view all items LiLAC might offer");
+		
+		System.out.println();
+		System.out.println("Enter 1 to check key constraint for Flower");
+		System.out.println("Enter 2 to check key and foreign key constraint for Bouquet");
+		System.out.println("Enter 3 to check foreign key constraint for Florist");
+		System.out.println("Enter 4 to check key constraint for Customer");
+		System.out.println("Enter 5 to check key constraint for Sale");
+		
+		System.out.println();
+		System.out.println("Enter Z to check CustomerArchive");
 	}
-	
-	
-	private static void updateDiscountUser(Connection conn) {
 
-		PreparedStatement pstmt = null;
+	// called from main
+	private static void leftJoinCommand(Connection conn) {
+		Statement stmt = null;
 		try {
-			if(isCustomerDiscountUser(conn, cNameGlobal)) {
-				pstmt = conn.prepareStatement("update Customer SET discountUser = True WHERE cName = ?");
-				pstmt.setString(1, cNameGlobal);
-				int rowUpdatedCount = pstmt.executeUpdate();
-				System.out.println(rowUpdatedCount + "in update discount user");
+			stmt = conn.createStatement();
+			String sql = "select * FROM Customer Left Outer Join Sale on Customer.cID = Sale.cID";
+			ResultSet rs = stmt.executeQuery(sql);
+
+			while(rs.next()) {
+				if(rs.getString("packaging") == null) {
+					System.out.println("This customer hasn't bought any bouquet: " + rs.getString("cName"));
+				}
 			}
+			rs.close();
+
+
+		} catch (SQLException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}catch(Exception e){
+			//Handle errors for Class.forName
+			e.printStackTrace();
+		}finally{
+			//finally block used to close resources
+			try{
+				if(stmt!=null)
+					stmt.close();
+			}catch(SQLException se2){}// nothing we can do
+
 		}
-		catch(SQLException se){
+
+
+	}
+
+	// using group by and having to find customers who spent a cumulative total over $25. called from main()
+	private static void viewCustomersSpentOver25(Connection conn) {
+		Statement stmt = null;
+		try {
+			String SQL ="select Customer.cName, sum(Sale.pricePaid) as cumulative_pricePaid from Sale, Customer, Bouquet where Sale.cID = Customer.cID AND Sale.bID = Bouquet.bID group by cName having sum(Sale.pricePaid) >= 25";
+			stmt = conn.createStatement();
+			ResultSet rs = stmt.executeQuery(SQL);  
+
+			//Display result
+			System.out.println("Here are all the customers who spent a cumulative total of $25 and over.");
+			while(rs.next()){
+				System.out.println("Customer name = "+rs.getString("cName")+", cumulative price paid = "+ "$" +rs.getInt("cumulative_pricePaid"));
+			}
+			System.out.println();
+
+		} catch(SQLException se){
 			//Handle errors for JDBC
 			se.printStackTrace();
 		}catch(Exception e){
@@ -99,98 +167,227 @@ public class JDBCExample {
 		}finally{
 			//finally block used to close resources
 			try{
-				if(pstmt!=null)
-					pstmt.close();
-			}catch(SQLException se2){}// nothing we can do
-
-		}
+				if(stmt!=null)
+					stmt.close();
+			}catch(SQLException se2){
+			}
+		}// nothing we can do
 	}
 
-	// pseudocode here. called from main(). Luis
-	private static void orderBouquet(Connection conn) {
-		
-		Scanner scanner = new Scanner(System.in);
-		
-		//Get customer name and customer ID with scanner
-		System.out.print("Please enter your name: ");
-		String cName = scanner.nextLine();
-		System.out.println("\nPlease enter your ID: ");
-		String cID = scanner.nextLine();
-		int idNum = 0;
-		try {
-			idNum = Integer.parseInt(cID);
-		}catch(Exception e) {
-			System.out.println("ID entered is not a number");
-			e.printStackTrace();
-		}
-		
 
-		//If customer DOES NOT exist in Customer schema, insert it. else, nothing
-		PreparedStatement pstmt = null;
-		String SQL = "SELECT * FROM Customer WHERE cID = ?";
-		boolean hasResults = false;
+	// Called from main(). Luis
+	private static void viewAllItems(Connection conn) {
+		String output = "";
+
+		String SQL = "SELECT fName FROM Flower UNION SELECT bName FROM Bouquet";
+		Statement stmt = null;
+		ResultSet rs = null;
+
+		System.out.println("Here are all the items we use or sell here at LiLAC");
+
 		try {
-			pstmt = conn.prepareStatement(SQL);
-			pstmt.setInt(1, idNum);
-			hasResults = pstmt.execute();
-			
+			stmt = conn.createStatement();
+			rs = stmt.executeQuery(SQL);
+
+			while(rs.next()) {
+				output += rs.getString(1) + "\n";
+			}
 		} catch (SQLException e) {
 			e.printStackTrace();
 		}
-		
-		// Customer does not exist in customer schema
-		if(!hasResults) {
-			SQL = "INSERT INTO CUSTOMER VALUES (?, ?, ?)";
+
+		System.out.println(output);
+	}
+
+	// called from main(). Luis
+	private static void orderBouquet(Connection conn) {
+
+		Scanner scanner = new Scanner(System.in);
+
+		//Get customer name and customer ID with scanner
+		System.out.print("Please enter your name: ");
+		String cName = scanner.nextLine();
+		//If customer DOES NOT exist in Customer schema, insert it. else, nothing
+		PreparedStatement pstmt = null;
+		String SQL = "SELECT cID FROM Customer WHERE cName = ?";
+		boolean hasResults = true;
+		Statement statement = null;
+		try {
+			pstmt = conn.prepareStatement(SQL);
+			pstmt.setString(1, cName);
+			ResultSet rs = pstmt.executeQuery();
+			hasResults = rs.isBeforeFirst();
+
+
+			// Customer does not exist in customer schema
+			if(!hasResults) {
+				int maxCID = 0;
+				try {
+					statement = conn.createStatement();
+					rs = statement.executeQuery("Select max(cID) from Customer");
+					rs.next();
+					maxCID = rs.getInt(1);
+					maxCID++;
+				} catch (SQLException e1) {
+					e1.printStackTrace();
+				}
+
+				SQL = "INSERT INTO CUSTOMER VALUES (?, ?, ?, ?)";
+				try {
+					pstmt = conn.prepareStatement(SQL);
+					pstmt.setInt(1, maxCID);
+					pstmt.setString(2, cName);
+					pstmt.setBoolean(3, false); // discountUser false by default
+
+					//pstmt.setTimestamp(4, new Timestamp(System.currentTimeMillis()));
+					pstmt.setDate(4, new Date(System.currentTimeMillis()));
+					pstmt.executeUpdate();
+
+					System.out.println("You are a new customer! I've added this following information:");
+					System.out.println("cID: " + maxCID);
+					System.out.println("cName: " + cName);
+					System.out.println("discountUser: " + false);
+					System.out.println("date of insertion: " + new Date(System.currentTimeMillis()));
+				} catch (SQLException e) {
+					e.printStackTrace();
+				}
+			} else { // customer exist
+				rs.next();
+				System.out.println("Welcome back! For your information, your cID is " + rs.getInt("cID") + ".");
+			}
+
+			boolean invalidInput = true;
+			while(invalidInput) {
+				//Prompt for bouquet type: existing type bouquet or a new bouquet. 
+				System.out.println("Would you like to order an existing bouquet or a new bouquet?\n"
+						+ "Enter X for ordering an existing bouquet or enter Y to order a new bouquet");
+
+				String input = scanner.nextLine();
+				input = input.toLowerCase();
+
+				if(input.equals("x")) { // ordering existing bouquet
+					invalidInput = false;
+					System.out.println("Please enter the name of the bouquet you wish to buy: ");
+					input = scanner.nextLine();
+					buyBouquet(conn, input);
+
+				} else if(input.equals("y")) { // order a new bouquet
+					invalidInput = false;
+					createNewBouquetType(conn); // IF user wants a new bouquet
+				}else {
+					System.out.println("Invalid input. Trying again...");
+				}
+			}
+			scanner.close();
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+	}
+
+	// called from orderBouquet() or createNewBouquet() -> Luis
+	private static void buyBouquet(Connection conn, String userBouquetName) {
+
+		PreparedStatement pstmt = null;
+		String SQL = "SELECT * FROM Bouquet WHERE bName = ?";
+		Scanner scanner = new Scanner(System.in);
+		int numLeft = 0;
+		boolean hasResult = false;
+		int bID = 0;
+		int pricePaid = 0;
+		while(!hasResult) {
 			try {
 				pstmt = conn.prepareStatement(SQL);
-				pstmt.setInt(1, idNum);
-				pstmt.setString(2, cName);
-				pstmt.setBoolean(3, false); // discountUser false by default
+				pstmt.setString(1, userBouquetName);
+				ResultSet rs = pstmt.executeQuery();
+				hasResult = rs.next();
+				numLeft = rs.getInt(3);
+				bID = rs.getInt(6);
+				pricePaid = rs.getInt(1);
 			} catch (SQLException e) {
 				e.printStackTrace();
 			}
-		}
 
-		
-		
-		boolean invalidInput = true;
-		while(invalidInput) {
-			//Prompt for bouquet type: existing type bouquet or a new bouquet. 
-			System.out.println("Would you like to order an existing bouquet or a new bouquet?\n"
-					+ "Enter X for ordering an existing bouquet or enter Y to order a new bouquet");
-			
-			String input = scanner.nextLine();
-			input = input.toLowerCase();
-			
-			if(input.equals("x")) { // ordering existing bouquet
-				invalidInput = false;
-				System.out.println("Please enter the name of the bouquet you wish to buy: ");
-				input = scanner.nextLine();
-				buyBouquet(conn, input);
-				
-			} else if(input.equals("y")) { // order a new bouquet
-				invalidInput = false;
-				createNewBouquetType(conn); // IF user wants a new bouquet
-			}else {
-				System.out.println("Invalid input. Trying again...");
+			//check bouquet availability. if dont exist/out of stock, re prompt
+			//use prepared statement bc we want to take user input
+			if(!hasResult) {
+				System.out.println("Unfortunately that bouquet is not available. Please enter a different name");
+				userBouquetName = scanner.nextLine();
+				continue;
+			} else if(numLeft <= 0) {//if bouquet has 0 stock, go back to the orderBouquet() method
+				System.out.println(userBouquetName + " is out of stock. Let's order a different one.");
+				orderBouquet(conn);
+				return;
 			}
+			boolean isVase = false;
+			boolean invalidInput = true;
+			String input = "";
+			while(invalidInput) {
+				System.out.println(userBouquetName + " is available! Would you like the bouquet to go or with a vase?\n"
+						+ "Enter 'X' for to go or 'Y' for vase");
+				input = scanner.nextLine();
+
+				input = input.toLowerCase();
+				if(input.equals("x")) { // to go
+					invalidInput = false;
+					isVase = false;
+
+				} else if(input.equals("y")) { // vase
+					invalidInput = false;
+					isVase = true;
+				}else {
+					System.out.println("Invalid input. Trying again...");
+					continue;
+				}
+				System.out.println("What is your name?");
+				input = scanner.nextLine();
+			}
+
+			// getting cID from name
+			int cID = 0;
+			SQL = "SELECT * FROM Customer WHERE cName = ?";
+			//boolean hasResults = true;
+			Statement statement = null;
+			ResultSet rs = null;
+			try {
+				pstmt = conn.prepareStatement(SQL);
+				pstmt.setString(1, input);
+				rs = pstmt.executeQuery();
+
+				// Customer does not exist in customer schema
+				if(!rs.next()) {
+					int maxCID = 0;
+					System.out.println("cust dont exist");
+					try {
+						statement = conn.createStatement();
+						rs = statement.executeQuery("Select max(cID) from Customer");
+						rs.next();
+						maxCID = rs.getInt(1);
+						maxCID++;
+						cID = maxCID;
+					} catch (SQLException e1) {
+						e1.printStackTrace();
+					}
+				}else { // customer exists
+					try {
+						System.out.println("exist");
+						//rs.next();
+						cID = rs.getInt(1);
+					} catch (SQLException e) {
+						e.printStackTrace();
+					}
+				}
+				System.out.println("So far, this is your order: cID: " + cID + " bID: " + bID + " packaging type: " + (isVase ? "vase" : "to go"));
+
+				//CALL INSERT TO SALE
+				insertIntoSale(conn, cID, bID, pricePaid, isVase ? "vase" : "to go");
+
+			} catch (SQLException e) {
+				e.printStackTrace();
+			}
+
+
+
 		}
-		scanner.close();
-	}
-
-	// pseudocode here. called from orderBouquet() or createNewBouquet()
-	private static void buyBouquet(Connection conn, String userBouquetName) {
-		System.out.println("TEST USER BOUQET NAME:" + userBouquetName); // cath testing
-
-		//check bouquet availability. if dont exist/out of stock, re prompt
-		//use prepared statement bc we want to take user input
-		
-		//if bouquet has 0 stock, go back to the orderBouquet() method
-		
-		//else, if bouquet available, Ask to go or vase
-
-		//CALL INSERT TO SALE
-		//insertIntoSale(conn, cID, bID, pricePaid, packaging);
 	}
 
 	//called from orderBouquet()
@@ -207,8 +404,8 @@ public class JDBCExample {
 			while(scanner.hasNextLine()) {
 				// Get user input
 				userInputFlower = scanner.nextLine();
-				
-				
+
+
 				// Check  if the user input actually already exists/not
 				stmt1 = conn.createStatement();
 				ResultSet rs = stmt1.executeQuery("Select fName from Flower");
@@ -238,11 +435,9 @@ public class JDBCExample {
 
 				if(isUnique) {
 					// if reach this point, flower IS UNIQUE
-					System.out.println("TEST USER INPUT FLOWER: " + userInputFlower);
 
 					System.out.println("What color would you like?");
 					String userColor = scanner.nextLine();
-					System.out.println("TEST USER INPUT COLOR: " + userColor);
 
 					int price = (new Random().nextInt(5+20)) + 5; // random price
 
@@ -251,7 +446,8 @@ public class JDBCExample {
 					rs = stmt2.executeQuery("select max(fID) as fIDMAX from Flower");
 					rs.next();
 					int newfID = rs.getInt(1) + 1;
-					System.out.println("TESTING: THE NEW Fid" + newfID) ; 
+					System.out.println("The current highest fID is " + (newfID - 1) + 
+							". So, this new flower will have the fID " + newfID + "!");
 
 					// param: fName, color, fPrice, fID
 					pstmt = conn.prepareStatement("insert into Flower values (?, ?, ?, ?)");
@@ -259,8 +455,8 @@ public class JDBCExample {
 					pstmt.setString(2, userColor);
 					pstmt.setInt(3, price);
 					pstmt.setInt(4, newfID);
-					
-					//pstmt.executeUpdate(); // COMMENTED OUT FR FOR TESTING PURPOSES
+
+					pstmt.executeUpdate(); 
 
 					buyBouquet(conn, userInputFlower + " Bouquet");
 				}
@@ -288,9 +484,9 @@ public class JDBCExample {
 	private static void insertIntoSale(Connection conn, int cID, int bID, int pricePaid, String packaging) {
 		PreparedStatement pstmt = null;
 		try {
+			Scanner scanner =new Scanner(System.in);
 			// Check first if this customer is a discount user.
-			if(isCustomerDiscountUser(conn, cNameGlobal)) {
-				System.out.println("not supposed to be here"); // FOR CATH'S TESTING
+			if(isCustomerDiscountUser(conn, cID)) {
 				pricePaid-= 2; //If they are, reduce the price paid by 2
 			} 
 
@@ -303,11 +499,20 @@ public class JDBCExample {
 
 			pstmt.executeUpdate();
 
-			if(isCustomerDiscountUser(conn, cNameGlobal)){ // FOR CATH'S TESTING
-				System.out.println("success");
-			}
+			updateBouquetNumCount(conn, bID);
 
-			updateBouquetNumCount(conn, cID, bID, pricePaid, packaging);
+			System.out.println("Would you like to change your packaging type? Currently, your packaging type is " + packaging + ".");
+			System.out.println("Press \"A\" if you would like to change your package type.");
+			System.out.println("Press anything else to finalize your purchase and see your receipt.");
+			String answer = scanner.nextLine().toUpperCase();
+
+			if(answer.equals("A")) {
+				System.out.println("Sure! I can change the packaging type for you.");
+				updatePackaging(conn, cID, bID);
+			} else {
+				System.out.println("Sure! Let me show your receipt for this purchase.");
+				showCustomerReceipt(conn, cID, bID);
+			}
 
 		} catch(SQLException se){
 			//Handle errors for JDBC
@@ -327,26 +532,137 @@ public class JDBCExample {
 	}
 
 	// pseudocode here. called from insertIntoSale()
-	private static void updateBouquetNumCount(Connection conn, int cID, int bID, int pricePaid, String packaging) {
-		//updating bouquet number. use prepared statment to update the 
-		//numLeft of the bID that's passed into the param
-		
-		showCustomerReceipt(conn, cID, bID, pricePaid, packaging);	
+	private static void updateBouquetNumCount(Connection conn, int bID) {
+		PreparedStatement pstmt = null;
+		PreparedStatement pstmt2 = null;
+		try {
+			pstmt2 = conn.prepareStatement("select numLeft from bouquet where bID = ?");
+			pstmt2.setInt(1, bID);
+			ResultSet rs = pstmt2.executeQuery();
+			while(rs.next()) {
+				System.out.println("Currently, we have " + rs.getInt("numLeft") + " of the bouquet in stock.");
+			}
+
+			String sql = "update bouquet as b1 inner join (select * from bouquet where bID = ?) as b2 using (bID) set b1.numLeft = b2.numLeft - 1 where bID = ?;";
+			pstmt = conn.prepareStatement(sql);
+			pstmt.setInt(1, bID);
+			pstmt.setInt(2, bID);
+			pstmt.executeUpdate();
+
+			rs = pstmt2.executeQuery();
+			while(rs.next()) {
+				System.out.println("Thanks to your purchase, now we have " + rs.getInt("numLeft") + " of the bouquet in stock!");
+			}
+
+
+		} catch(SQLException se){
+			//Handle errors for JDBC
+			se.printStackTrace();
+		}catch(Exception e){
+			//Handle errors for Class.forName
+			e.printStackTrace();
+		}finally{
+			//finally block used to close resources
+			try{
+				if(pstmt!=null) pstmt.close();
+				if(pstmt2!=null) pstmt2.close();
+			}catch(SQLException se2){}// nothing we can do
+
+		}
+
 	}
 
 	// pseudocode here. called from updateBouquetNumCount()
-	private static void showCustomerReceipt(Connection conn, int cID, int bID, int pricePaid, String packaging) {
-		updatePackaging(conn, cID, bID, pricePaid);
+	private static void showCustomerReceipt(Connection conn, int cID, int bID) {
+		//given the cID and bID, show the customer name (name, not id), bouquet name (name, not bID), pricePaid, and packaging.
+		// inner join sale, bouquet, and customer. 
+		PreparedStatement pstmt = null;
+		try {
+			String sql = "select cName, bName, pricePaid, packaging from sale inner join bouquet using (bID) inner join customer using (cID) where cID = ? and bID = ?;";
+			pstmt = conn.prepareStatement(sql);
+			pstmt.setInt(1, cID);
+			pstmt.setInt(2, bID);
+
+			ResultSet rs = pstmt.executeQuery();
+			rs.next();
+
+			System.out.println("Your purchase:");
+			System.out.println("Customer name: " + rs.getString("cName") + " Bouquet name: " + rs.getString("bName") 
+			+ " Price paid: " + rs.getString("pricePaid") + " Packaging: " + rs.getString("packaging"));
+			System.out.println("Thank you!");
+
+
+		}catch(SQLException se){
+			//Handle errors for JDBC
+			se.printStackTrace();
+		}catch(Exception e){
+			//Handle errors for Class.forName
+			e.printStackTrace();
+		}finally{
+			//finally block used to close resources
+			try{
+				if(pstmt!=null)pstmt.close();
+			}catch(SQLException se2){}
+		}// nothing we can do
+
 	}
 
-	private static void updatePackaging(Connection conn, int cID, int bID, int pricePaid) {
+	private static void updatePackaging(Connection conn, int cID, int bID) {
 		//prompt user
+		PreparedStatement pstmt1 = null;
+		PreparedStatement pstmt2 = null;
+		try {
+			// get the current packaging
+			String sql = "select packaging from sale where cID = ? and bId = ?";
+			pstmt1 = conn.prepareStatement(sql);
+			pstmt1.setInt(1, cID);
+			pstmt1.setInt(2, bID);
+
+			ResultSet rs = pstmt1.executeQuery();
+			String currPackaging = "";
+			while(rs.next()) {
+				currPackaging = rs.getString("packaging");
+			}
+			System.out.println("Your current packaging type is " + currPackaging + ".");
+
+			// change the packaging
+			String sql2 = "";
+			if(currPackaging.equals("vase")) {
+				sql2 = "update sale set packaging = 'to go' where cID = ? and bId = ?";
+				System.out.println("Your packaging has been changed into to go.");
+			} else if(currPackaging.equals("to go")) {
+				sql2 = "update sale set packaging = 'vase' where cID = ? and bId = ?";
+				System.out.println("Your packaging has been changed into vase.");
+			}
+			pstmt2 = conn.prepareStatement(sql2);
+			pstmt2.setInt(1, cID);
+			pstmt2.setInt(2, bID);
+			pstmt2.executeUpdate();
+
+
+		}catch(SQLException se){
+			//Handle errors for JDBC
+			se.printStackTrace();
+		}catch(Exception e){
+			//Handle errors for Class.forName
+			e.printStackTrace();
+		}finally{
+			//finally block used to close resources
+			try{
+				if(pstmt1!=null)
+					pstmt1.close();
+				if(pstmt2!=null)
+					pstmt2.close();
+			}catch(SQLException se2){}// nothing we can do
+
+		}
+
 	}
 
-	private static boolean isCustomerDiscountUser(Connection conn, String customerName) throws SQLException {
-		CallableStatement cstmt = conn.prepareCall("{call getTotalSpentByCustomerName(?, ?)}"); 
+	private static boolean isCustomerDiscountUser(Connection conn, int cID) throws SQLException {
+		CallableStatement cstmt = conn.prepareCall("{call getTotalSpentByCustomerID(?, ?)}"); 
 
-		cstmt.setString(1, customerName); // preparing input
+		cstmt.setInt(1, cID); // preparing input
 		cstmt.registerOutParameter(2, Types.INTEGER); // register output
 
 		cstmt.executeUpdate();
@@ -362,24 +678,43 @@ public class JDBCExample {
 
 	private static void viewDiscountEligibility(Connection conn) {
 		CallableStatement cstmt = null;
-
+		PreparedStatement pstmt = null;
 		try {
 
-			cstmt = conn.prepareCall("{call getTotalSpentByCustomerName(?, ?)}"); 
+			// ask for customer name
+			System.out.println("Please enter your name so we can get your order history: ");
+			Scanner scanner = new Scanner(System.in);
+			String name = scanner.nextLine();
 
-			cstmt.setString(1, cNameGlobal); // preparing input
-			cstmt.registerOutParameter(2, Types.INTEGER); // register output
+			// check if Customer name is in Customer relation
+			String SQL = "Select * From Customer Where cName = ?";
 
-			cstmt.executeUpdate();
-			int totalCustomerSpent = cstmt.getInt(2);
-			System.out.print("Your total so far is $" + totalCustomerSpent + ".");
+			pstmt = conn.prepareStatement(SQL);
+			pstmt.setString(1, name);
 
-			if(totalCustomerSpent < 50){
-				System.out.println(" You need to spend $" + (50 - totalCustomerSpent) + 
-						" more to be eligible for a discount.");
+			ResultSet rsNameCheck = pstmt.executeQuery(); 
+			if(rsNameCheck.next()) {
+
+				int cID = rsNameCheck.getInt("cID");
+
+				cstmt = conn.prepareCall("{call getTotalSpentByCustomerID(?, ?)}"); 
+				cstmt.setInt(1, cID); // preparing input
+				cstmt.registerOutParameter(2, Types.INTEGER); // register output
+
+				cstmt.executeUpdate();
+				int totalCustomerSpent = cstmt.getInt(2);
+				System.out.print("Your total so far is $" + totalCustomerSpent + ".");
+
+				if(totalCustomerSpent < 50){
+					System.out.println(" You need to spend $" + (50 - totalCustomerSpent) + 
+							" more to be eligible for a discount.");
+				} else {
+					System.out.println(" You are eligible for a discount!");
+				}	
 			} else {
-				System.out.println(" You are eligible for a discount!");
-			}	
+				System.out.println("Your name is not in your database. Please place an order. You are eligible for a discount if you spend at least $50.");
+			}
+
 
 		}
 		catch(SQLException se){
@@ -413,31 +748,31 @@ public class JDBCExample {
 			System.out.println("Please enter your name so we can get your order history: ");
 			Scanner scanner = new Scanner(System.in);
 			String name = "";
-			
+
 			while (scanner.hasNextLine())
 			{
 				name = scanner.nextLine();
-				
+
 				// check if Customer name is in Customer relation
 				String SQL = "Select * From Customer Where cName = ?";
-				
+
 				pstmt = conn.prepareStatement(SQL);
 				pstmt.setString(1, name);
-				
+
 				ResultSet rsNameCheck = pstmt.executeQuery();  
 				System.out.println();
-				
+
 				// if the Customer name input is in the customer, then proceed to get their order history in Sale relation
 				if (rsNameCheck.next() != false){
 					System.out.println("Customer name = " + rsNameCheck.getString("cName") + "; Customer cID = " + rsNameCheck.getInt("cID"));
 					// SQL Prepared statement selecting Customer's name, the name of the bouquet, the total price paid and the type of packaging for each order a customer made
 					SQL = "Select Customer.cName, Customer.cID, Bouquet.bName, Sale.pricePaid, Sale.packaging From Customer, Sale, Bouquet Where Customer.cName = ? and Customer.cID = Sale.cID and Sale.bID = Bouquet.bID";
-					
+
 					pstmt = conn.prepareStatement(SQL);
 					pstmt.setString(1, name);
-					
+
 					ResultSet rs = pstmt.executeQuery();  
-					
+
 					//Display result
 					System.out.println("Here are all your previous order history, " + name+ ".");
 					System.out.println();
@@ -446,23 +781,23 @@ public class JDBCExample {
 					}
 					System.out.println();
 				}
-				
+
 				// if the input name is not in Customer relation, then call viewOrderHistory again to reprompt
 				else
 				{
 					System.out.println("Invalid input. It seems that your name isn't registered in our database as a customer. Please try again.");
 					viewOrderHistory(conn);
-					
+
 					// Once viewOrderHistory method is done and user wants to go back to main page, it would break the loop
 					// it wont execute the commands below if returnMain input is "y" to go back to main page
 					break;
 				}
-				
+
 				// After a customer is done viewing their order history, prompts user if they want to go back to main page
 				System.out.println("Would you like to exit out of your order history and return back to the main page? (y/n)");
 				if (scanner.hasNextLine()) {
 					String returnMain = scanner.nextLine();
-					
+
 					if (returnMain.equalsIgnoreCase("y"))
 					{
 						// returns to main helper prompt
@@ -491,7 +826,7 @@ public class JDBCExample {
 			}catch(SQLException se2){}// nothing we can do
 
 		}
-		
+
 	}
 
 	private static void viewBouquetInformation(Connection conn) {
@@ -514,27 +849,27 @@ public class JDBCExample {
 
 			Scanner scanner = new Scanner(System.in);
 			System.out.println("Which flower bouquet would you like to learn more about? Or, enter \"Z\" to do something else.");
-			
+
 			while (scanner.hasNextLine())
 			{
 				String userBouquetSelected = scanner.nextLine();
 				if (userBouquetSelected.equals("Z"))
-						{
-							return;
-						}
+				{
+					return;
+				}
 				else
 				{
 					//make a sql statement to check if the bouquet exists 
-					
+
 					// check if bouquet name inputted is in Bouquet relation
 					String SQL = "Select * From Bouquet Where bName = ?";
 					pstmt = conn.prepareStatement(SQL);
-					
+
 					pstmt.setString(1, userBouquetSelected);
-					
+
 					ResultSet rsNameCheck = pstmt.executeQuery();  
 					System.out.println();
-					
+
 					if (rsNameCheck.next() != false)
 					{
 						System.out.println("Bouquet name = "+rsNameCheck.getString("bName")+", price = "+rsNameCheck.getInt("bPrice") + ", stock = " + rsNameCheck.getInt("numLeft"));
@@ -556,9 +891,9 @@ public class JDBCExample {
 						}else {
 							System.out.println("Invalid input. Please re-enter a valid option.");
 						}
-						
+
 						System.out.println("Which flower bouquet would you like to learn more about? Or, enter \"Z\" to do something else.");
-						
+
 					}
 					else
 					{
@@ -566,10 +901,10 @@ public class JDBCExample {
 						viewBouquetInformation(conn);
 						return;
 					}
-					
+
 				}
 			}
-			
+
 
 		}
 		catch(SQLException se){
@@ -675,21 +1010,15 @@ public class JDBCExample {
 		}// nothing we can do
 	}
 	
-	// using group by and having to find customers who spent a cumulative total over $25
-	private static void viewCustomersSpentOver25(Connection conn) {
-		Statement stmt = null;
+	private static void testFlowerSchema(Connection conn) {
+		Statement stmt1 = null;
+		
 		try {
-			String SQL ="select Customer.cName, sum(Sale.pricePaid) as cumulative_pricePaid from Sale, Customer, Bouquet where Sale.cID = Customer.cID AND Sale.bID = Bouquet.bID group by cName having sum(Sale.pricePaid) >= 25";
-			stmt = conn.createStatement();
-			ResultSet rs = stmt.executeQuery(SQL);  
-
-			//Display result
-			System.out.println("Here are all the customers who spent a cumulative total of $25 and over.");
-			while(rs.next()){
-				System.out.println("Customer name = "+rs.getString("cName")+", cumulative price paid = "+ "$" +rs.getInt("cumulative_pricePaid"));
-			}
-
-		} catch(SQLException se){
+			stmt1 = conn.createStatement();
+			System.out.println("insert into flower values ('name', 'color', 1, 1001)");
+			String sql = "insert into flower values ('name', 'color', 1, 1001)";
+			stmt1.executeUpdate(sql);
+		}catch(SQLException se){
 			//Handle errors for JDBC
 			se.printStackTrace();
 		}catch(Exception e){
@@ -698,10 +1027,198 @@ public class JDBCExample {
 		}finally{
 			//finally block used to close resources
 			try{
-				if(stmt!=null)
-					stmt.close();
+				if(stmt1!=null) stmt1.close();
 			}catch(SQLException se2){
 			}
-		}// nothing we can do
+		}
 	}
+
+	private static void testBouquetSchema(Connection conn) {
+		Statement stmt1 = null;
+		Statement stmt2 = null;
+		try {
+			stmt1 = conn.createStatement();
+			System.out.println("insert into bouquet values (1, 'bName', 1, 1, 1001, 1)");
+			String sql = "insert into bouquet values (1, 'bName', 1, 1, 1001, 1)";
+			stmt1.executeUpdate(sql);
+		}catch(SQLException se){
+			//Handle errors for JDBC
+			System.out.println(se);
+		}finally{
+			//finally block used to close resources
+			try{
+				if(stmt1!=null) stmt1.close();
+			}catch(SQLException se2){
+			}
+		}
+		
+		try {
+			stmt2 = conn.createStatement();
+			System.out.println("insert into bouquet values (1, 'bName', 1, 1, 1007, 7)");
+			String sql = "insert into bouquet values (1, 'bName', 1, 1, 1007, 7)";
+			stmt2.executeUpdate(sql);
+		}catch(SQLException se){
+			//Handle errors for JDBC
+			System.out.println(se);
+		}finally{
+			//finally block used to close resources
+			try{
+				if(stmt2!=null) stmt2.close();
+			}catch(SQLException se2){
+			}
+		}
+	}
+	
+	private static void testFloristSchema(Connection conn) {
+		Statement stmt1 = null;
+		try {
+			stmt1 = conn.createStatement();
+			System.out.println("insert into florist values (1007, 1, '2021-11-29')");
+			String sql = "insert into florist values (1007, 1, '2021-11-29')";
+			stmt1.executeUpdate(sql);
+		}catch(SQLException se){
+			//Handle errors for JDBC
+			System.out.println(se);
+		}finally{
+			//finally block used to close resources
+			try{
+				if(stmt1!=null) stmt1.close();
+			}catch(SQLException se2){
+			}
+		}
+	}
+	
+	private static void testCustomerSchema(Connection conn) {
+		Statement stmt1 = null;
+		try {
+			stmt1 = conn.createStatement();
+			System.out.println("insert into customer values (201, 'a', 0, '2021-11-20')");
+			String sql = "insert into customer values (201, 'a', 0, '2021-11-20')";
+			stmt1.executeUpdate(sql);
+		}catch(SQLException se){
+			//Handle errors for JDBC
+			System.out.println(se);
+		}finally{
+			//finally block used to close resources
+			try{
+				if(stmt1!=null) stmt1.close();
+			}catch(SQLException se2){
+			}
+		}
+	}
+	
+	private static void testSaleSchema(Connection conn) {
+		Statement stmt1 = null;
+		Statement stmt2 = null;
+		Statement stmt3 = null;
+		try {
+			stmt1 = conn.createStatement();
+			System.out.println("insert into sale values (207, 4, 12, 'to go')");
+			String sql = "insert into sale values (207, 4, 12, 'to go')";
+			stmt1.executeUpdate(sql);
+		}catch(SQLException se){
+			//Handle errors for JDBC
+			System.out.println(se);
+			}
+		
+		try {
+			stmt2 = conn.createStatement();
+			System.out.println("insert into sale values (213, 3, 30, 'to go')");
+			String sql = "insert into sale values (213, 3, 30, 'to go')";
+			stmt2.executeUpdate(sql);
+		}catch(SQLException se2){
+			//Handle errors for JDBC
+			System.out.println(se2);
+		}
+		
+		try {
+			stmt3 = conn.createStatement();
+			System.out.println("insert into sale values (207, 10, 12, 'to go')");
+			String sql = "insert into sale values (207, 10, 12, 'to go')";
+			stmt3.executeUpdate(sql);
+		}catch(SQLException se3){
+			//Handle errors for JDBC
+			System.out.println(se3);
+		}finally{
+			//finally block used to close resources
+			try{
+				if(stmt3!=null) stmt3.close();
+			}catch(SQLException se3){
+			}
+		}
+	}
+	
+	private static void customerArchive(Connection conn) {
+		Statement stmt1 = null;
+		CallableStatement cstmt = null;
+		
+		try {
+			stmt1 = conn.createStatement();
+			System.out.println("select * from customer");
+			String sql = "select * from customer";
+			ResultSet rs = stmt1.executeQuery(sql);
+			
+			while(rs.next()) {
+				System.out.println("cID: " + rs.getInt("cID")
+				+ " cName: " + rs.getString("cName")
+				+ " discountUser: " + rs.getBoolean("discountUser")
+				+ " updatedAt: " + rs.getDate("updatedAt"));
+			}
+			
+			System.out.println("select * from customerarchive");
+			sql = "select * from customerarchive";
+			rs = stmt1.executeQuery(sql);
+			
+			while(rs.next()) {
+				System.out.println("cIDArchive: " + rs.getInt("cIDArchive")
+				+ " cNameArchive: " + rs.getString("cNameArchive")
+				+ " discountUserArchive: " + rs.getBoolean("discountUserArchive")
+				+ " updatedAtArchive: " + rs.getDate("updatedAtArchive"));
+			}
+			
+			System.out.println("{call archiveCustomerProcedure(?)}");
+			cstmt = conn.prepareCall("{call archiveCustomerProcedure(?)}");
+			String myDate = "2021/1/1";
+			SimpleDateFormat sdf = new SimpleDateFormat("yyyy/MM/dd");
+			java.util.Date date = sdf.parse(myDate);
+			cstmt.setDate(1, new java.sql.Date(date.getTime()));
+			cstmt.executeUpdate();
+			
+			System.out.println("select * from customerarchive");
+			sql = "select * from customerarchive";
+			rs = stmt1.executeQuery(sql);
+			
+			while(rs.next()) {
+				System.out.println("cIDArchive: " + rs.getInt("cIDArchive")
+				+ " cNameArchive: " + rs.getString("cNameArchive")
+				+ " discountUserArchive: " + rs.getBoolean("discountUserArchive")
+				+ " updatedAtArchive: " + rs.getDate("updatedAtArchive"));
+			}
+			
+			System.out.println("select * from customer");
+			sql = "select * from customer";
+			rs = stmt1.executeQuery(sql);
+			
+			while(rs.next()) {
+				System.out.println("cID: " + rs.getInt("cID")
+				+ " cName: " + rs.getString("cName")
+				+ " discountUser: " + rs.getBoolean("discountUser")
+				+ " updatedAt: " + rs.getDate("updatedAt"));
+			}
+			
+			
+		}catch(SQLException se){
+			//Handle errors for JDBC
+			System.out.println(se);
+		}catch(Exception e) {
+			System.out.println(e);
+		}finally{
+			//finally block used to close resources
+			try{
+				if(stmt1!=null) stmt1.close();
+			}catch(SQLException se2){
+			}
+		}
+	}
+	
 }//end JDBCExample
